@@ -29,13 +29,13 @@ func TestS5(t *testing.T) {
 func handle(conn net.Conn) {
 	defer conn.Close()
 
-	s5 := socket5.New(conn)
+	s5 := socks5.New(conn)
 	_, err := s5.AuthGetMethods()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	s5.AuthRepies(socket5.AuthNone)
+	s5.AuthRepies(socks5.AuthNone)
 
 	host, port, atyp, err := s5.Requests()
 	if err != nil {
@@ -49,7 +49,7 @@ func handle(conn net.Conn) {
 		return
 	}
 
-	s5.Replies(socket5.ReplyPass, atyp, server.RemoteAddr())
+	s5.Replies(socks5.ReplyPass, atyp, server.RemoteAddr())
 	s5.Forward(server, conn)
 
 }
