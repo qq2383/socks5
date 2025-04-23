@@ -26,7 +26,7 @@ const (
 	ReplyFail byte = 0x01
 )
 
-// Request atyp value 
+// Request atyp value
 const (
 	BIND          byte = 0x02
 	CONNECT       byte = 0x01
@@ -46,20 +46,20 @@ var (
 	ErrAuthFail = fmt.Errorf("authentication failed")
 )
 
-// Socks5 struct 
+// Socks5 struct
 type Socks5 struct {
 	r *bufio.Reader
 	w *bufio.Writer
 }
 
-// New Socks5 func 
+// New Socks5 func
 func New(conn net.Conn) *Socks5 {
 	r := bufio.NewReader(conn)
 	w := bufio.NewWriter(conn)
 	return &Socks5{r: r, w: w}
 }
 
-// How to obtain the authentication 
+// How to obtain the authentication
 func (s *Socks5) AuthGetMethod() (byte, error) {
 	err := s.GetVer()
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *Socks5) AuthGetMethod() (byte, error) {
 	return s.r.ReadByte()
 }
 
-// Obtain the authentication method, return methods 
+// Obtain the authentication method, return methods
 func (s *Socks5) AuthGetMethods() ([]byte, error) {
 	err := s.GetVer()
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *Socks5) AuthGetStatus() error {
 	return nil
 }
 
-// Obtain an authenticated user, return user name and passwd 
+// Obtain an authenticated user, return user name and passwd
 func (s *Socks5) AuthGetUser() (user, passwd string, err error) {
 	err = s.GetVer()
 	if err != nil {
@@ -144,7 +144,7 @@ func (s *Socks5) AuthGetUser() (user, passwd string, err error) {
 
 // Authentication answer, b Answer code.
 // Method: AuthNone or AuthUser
-// Status: ReplyPass or ReplyFail 
+// Status: ReplyPass or ReplyFail
 func (s *Socks5) AuthRepies(b byte) error {
 	_, err := s.w.Write([]byte{VER, b})
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *Socks5) AuthRepies(b byte) error {
 	return err
 }
 
-// Send authentication method 
+// Send authentication method
 func (s *Socks5) AuthSendMethods(method byte) error {
 	rep := []byte{VER, 0x01, method}
 	_, err := s.w.Write(rep)
@@ -164,7 +164,7 @@ func (s *Socks5) AuthSendMethods(method byte) error {
 	return s.w.Flush()
 }
 
-// Send the authentication user/password 
+// Send the authentication user/password
 func (s *Socks5) AuthSendUser(name, passwd string) error {
 	rep := []byte{VER}
 	rep = append(rep, uint8(len(name)))
@@ -180,7 +180,7 @@ func (s *Socks5) AuthSendUser(name, passwd string) error {
 
 // Connect to a server, return net.Conn, error
 func (s *Socks5) Dial(host string, port int) (net.Conn, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	server, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s:%d - %w", host, port, err)
@@ -188,7 +188,7 @@ func (s *Socks5) Dial(host string, port int) (net.Conn, error) {
 	return server, nil
 }
 
-// Forward 
+// Forward
 func (s *Socks5) Forward(server, client net.Conn) {
 	defer func() {
 		server.Close()
@@ -199,7 +199,7 @@ func (s *Socks5) Forward(server, client net.Conn) {
 	io.Copy(client, server)
 }
 
-// Get the version number, not 5 returns an error 
+// Get the version number, not 5 returns an error
 func (s *Socks5) GetVer() error {
 	ver, err := s.r.ReadByte()
 	if err != nil {
@@ -224,7 +224,7 @@ func (s *Socks5) ParsePort() (int, error) {
 
 // Resolve host from Requests
 func (s *Socks5) ParsetHost(atyp byte) (string, error) {
-	var host []byte
+	host := ""
 	var err error
 	switch atyp {
 	case DomainName: // DomainName
@@ -232,22 +232,28 @@ func (s *Socks5) ParsetHost(atyp byte) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		p := make([]byte, int(dlen))
-		_, err = s.r.Read(p)
+		buf := make([]byte, int(dlen))
+		_, err = s.r.Read(buf)
 		if err != nil {
 			return "", err
 		}
-		host = p
-	case IPv4, IPv6: // IPv6
-		var ip net.IP
-		_, err = s.r.Read(ip)
+		host = string(buf)
+	case IPv4, IPv6: // IPv4 or IPv6
+		var buf []byte
+		if atyp == IPv4 {
+			buf = make([]byte, net.IPv4len)
+		} else {
+			buf = make([]byte, net.IPv6len)
+		}
+		_, err = s.r.Read(buf)
 		if err != nil {
 			return "", err
 		}
 		if atyp == IPv4 {
-			host = net.IP(ip).To4()
+			host = fmt.Sprintf("%d.%d.%d.%d", buf[0], buf[1], buf[2], buf[3])
 		} else {
-			host = net.IP(ip)
+			host = fmt.Sprintf("%x:%x:%x:%x:%x:%x:%x:%x",
+				buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7])
 		}
 	default:
 		err = errors.New("unknown address type")
@@ -255,7 +261,7 @@ func (s *Socks5) ParsetHost(atyp byte) (string, error) {
 	return string(host), err
 }
 
-// Respond to the client 
+// Respond to the client
 func (s *Socks5) Replies(rep byte, atyp byte, addr net.Addr) error {
 	buf := []byte{VER, rep, 0x00, atyp}
 	if addr == nil {
@@ -289,7 +295,7 @@ func (s *Socks5) Replies(rep byte, atyp byte, addr net.Addr) error {
 	return err
 }
 
-// Get the request data 
+// Get the request data
 func (s *Socks5) Requests() (host string, port int, atyp byte, err error) {
 	err = s.GetVer()
 	if err != nil {
@@ -321,6 +327,3 @@ func (s *Socks5) Requests() (host string, port int, atyp byte, err error) {
 	}
 	return host, port, atyp, nil
 }
-
-
-
