@@ -126,7 +126,6 @@ func (s *Socks5) AuthGetUser() (user, passwd string, err error) {
 		return user, passwd, err
 	}
 	user = string(p[:n])
-	fmt.Println(user)
 
 	plen, err := s.r.ReadByte()
 	if err != nil {
@@ -138,7 +137,7 @@ func (s *Socks5) AuthGetUser() (user, passwd string, err error) {
 		return "", "", err
 	}
 	passwd = string(p[:n])
-	fmt.Println(passwd)
+	
 	return user, passwd, err
 }
 
@@ -211,17 +210,6 @@ func (s *Socks5) GetVer() error {
 	return nil
 }
 
-// Resolve port from Requests
-func (s *Socks5) ParsePort() (int, error) {
-	p := make([]byte, 2)
-	_, err := s.r.Read(p)
-	if err != nil {
-		return 0, err
-	}
-	port := binary.BigEndian.Uint16(p)
-	return int(port), nil
-}
-
 // Resolve host from Requests
 func (s *Socks5) ParsetHost(atyp byte) (string, error) {
 	host := ""
@@ -259,6 +247,17 @@ func (s *Socks5) ParsetHost(atyp byte) (string, error) {
 		err = errors.New("unknown address type")
 	}
 	return string(host), err
+}
+
+// Resolve port from Requests
+func (s *Socks5) ParsePort() (int, error) {
+	p := make([]byte, 2)
+	_, err := s.r.Read(p)
+	if err != nil {
+		return 0, err
+	}
+	port := binary.BigEndian.Uint16(p)
+	return int(port), nil
 }
 
 // Respond to the client
